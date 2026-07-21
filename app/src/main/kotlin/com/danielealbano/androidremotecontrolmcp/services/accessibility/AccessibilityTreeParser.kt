@@ -41,6 +41,16 @@ data class BoundsData(
  *   populated by Chrome and the Android System WebView on every web accessibility node. Null for
  *   native and Compose nodes. Used to scope WebView node collapsing to web content only.
  * @property targetUrl Target URL from `getExtras()` for links and images, or null when absent.
+ * @property rowCount Total row count from [AccessibilityNodeInfo.getCollectionInfo] when this
+ *   node is a collection container (e.g., RecyclerView, LazyColumn). May exceed the number of
+ *   currently rendered child items — virtualized lists only materialize on-screen items as
+ *   accessibility nodes. Null when the node is not a collection container.
+ * @property columnCount Total column count from CollectionInfo, alongside [rowCount]. Null when
+ *   the node is not a collection container.
+ * @property rowIndex Row index from [AccessibilityNodeInfo.getCollectionItemInfo] when this node
+ *   is an item within a collection container. Null when the node is not a collection item.
+ * @property columnIndex Column index from CollectionItemInfo, alongside [rowIndex]. Null when the
+ *   node is not a collection item.
  * @property children The child nodes of this node.
  */
 @Serializable
@@ -60,6 +70,10 @@ data class AccessibilityNodeData(
     val visible: Boolean = false,
     val webRole: String? = null,
     val targetUrl: String? = null,
+    val rowCount: Int? = null,
+    val columnCount: Int? = null,
+    val rowIndex: Int? = null,
+    val columnIndex: Int? = null,
     val children: List<AccessibilityNodeData> = emptyList(),
 )
 
@@ -200,6 +214,16 @@ class AccessibilityTreeParser
             val webRole = extras?.getString(EXTRA_KEY_CHROME_ROLE)?.takeIf(String::isNotEmpty)
             val targetUrl = extras?.getString(EXTRA_KEY_TARGET_URL)?.takeIf(String::isNotEmpty)
 
+            // CollectionInfo/CollectionItemInfo are set by list/grid widgets (RecyclerView,
+            // Compose LazyColumn/LazyGrid) on the container node and its rendered item nodes
+            // respectively. Negative values are the platform's undefined-value convention.
+            val collectionInfo = node.collectionInfo
+            val rowCount = collectionInfo?.rowCount?.takeIf { it >= 0 }
+            val columnCount = collectionInfo?.columnCount?.takeIf { it >= 0 }
+            val collectionItemInfo = node.collectionItemInfo
+            val rowIndex = collectionItemInfo?.rowIndex?.takeIf { it >= 0 }
+            val columnIndex = collectionItemInfo?.columnIndex?.takeIf { it >= 0 }
+
             // Max depth protection: return current node as leaf without recursing into children
             if (depth >= MAX_TREE_DEPTH) {
                 Log.w(TAG, "Maximum tree depth ($MAX_TREE_DEPTH) reached, truncating subtree")
@@ -221,6 +245,10 @@ class AccessibilityTreeParser
                         visible = visible,
                         webRole = webRole,
                         targetUrl = targetUrl,
+                        rowCount = rowCount,
+                        columnCount = columnCount,
+                        rowIndex = rowIndex,
+                        columnIndex = columnIndex,
                         children = emptyList(),
                     )
 
@@ -284,6 +312,10 @@ class AccessibilityTreeParser
                     visible = visible,
                     webRole = webRole,
                     targetUrl = targetUrl,
+                    rowCount = rowCount,
+                    columnCount = columnCount,
+                    rowIndex = rowIndex,
+                    columnIndex = columnIndex,
                     children = children,
                 )
 

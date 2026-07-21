@@ -34,6 +34,10 @@ class CompactTreeFormatterTest {
         editable: Boolean = false,
         enabled: Boolean = false,
         visible: Boolean = false,
+        rowCount: Int? = null,
+        columnCount: Int? = null,
+        rowIndex: Int? = null,
+        columnIndex: Int? = null,
         children: List<AccessibilityNodeData> = emptyList(),
     ) = AccessibilityNodeData(
         id = id,
@@ -49,6 +53,10 @@ class CompactTreeFormatterTest {
         editable = editable,
         enabled = enabled,
         visible = visible,
+        rowCount = rowCount,
+        columnCount = columnCount,
+        rowIndex = rowIndex,
+        columnIndex = columnIndex,
         children = children,
     )
 
@@ -84,6 +92,16 @@ class CompactTreeFormatterTest {
             val output = formatter.format(tree, "com.example", ".Main", defaultScreenInfo)
             val lines = output.lines()
             assertEquals(CompactTreeFormatter.NOTE_LINE_FLAGS_LEGEND, lines[2])
+        }
+
+        @Test
+        @DisplayName("flags legend note includes rows=N/cols=N collection legend text")
+        fun flagsLegendNoteIncludesRowsColsLegendText() {
+            val tree = makeNode(text = "hello")
+            val output = formatter.format(tree, "com.example", ".Main", defaultScreenInfo)
+            val lines = output.lines()
+            assertTrue(lines[2].contains("rows=N/cols=N"))
+            assertTrue(lines[2].contains("row=N/col=N"))
         }
 
         @Test
@@ -415,6 +433,18 @@ class CompactTreeFormatterTest {
         fun returnsFalseForEmptyNonInteractiveNode() {
             assertFalse(formatter.shouldKeepNode(makeNode()))
         }
+
+        @Test
+        @DisplayName("returns true for collection container with no other filterable attributes")
+        fun returnsTrueForCollectionContainerWithNoOtherFilterableAttributes() {
+            assertTrue(formatter.shouldKeepNode(makeNode(rowCount = 50, columnCount = 1)))
+        }
+
+        @Test
+        @DisplayName("returns false for plain container without collection info")
+        fun returnsFalseForPlainContainerWithoutCollectionInfo() {
+            assertFalse(formatter.shouldKeepNode(makeNode(className = "android.widget.FrameLayout")))
+        }
     }
 
     // ─────────────────────────────────────────────────────────────────────
@@ -659,6 +689,31 @@ class CompactTreeFormatterTest {
                     enabled = true,
                 )
             assertEquals("off,clk,lclk,foc,scr,edt,ena", formatter.buildFlags(node))
+        }
+
+        @Test
+        @DisplayName("appends rows and cols tokens for collection container")
+        fun appendsRowsAndColsTokensForCollectionContainer() {
+            val node = makeNode(visible = true, rowCount = 50, columnCount = 1)
+            assertEquals("on,rows=50,cols=1", formatter.buildFlags(node))
+        }
+
+        @Test
+        @DisplayName("appends row and col tokens for collection item")
+        fun appendsRowAndColTokensForCollectionItem() {
+            val node = makeNode(visible = true, rowIndex = 3, columnIndex = 0)
+            assertEquals("on,row=3,col=0", formatter.buildFlags(node))
+        }
+
+        @Test
+        @DisplayName("omits collection tokens when fields are null")
+        fun omitsCollectionTokensWhenFieldsAreNull() {
+            val node = makeNode(visible = true, clickable = true, enabled = true)
+            val flags = formatter.buildFlags(node)
+            assertFalse(flags.contains("rows="))
+            assertFalse(flags.contains("cols="))
+            assertFalse(flags.contains("row="))
+            assertFalse(flags.contains("col="))
         }
     }
 

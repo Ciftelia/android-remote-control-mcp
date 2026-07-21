@@ -795,5 +795,115 @@ class TouchActionToolsTest {
                     tool.execute(params)
                 }
             }
+
+        @Test
+        @DisplayName("scroll with default count executes exactly once")
+        fun scrollWithDefaultCountExecutesExactlyOnce() =
+            runTest {
+                coEvery { actionExecutor.scroll(any(), any(), any()) } returns Result.success(Unit)
+
+                val params = buildJsonObject { put("direction", "down") }
+                val result = tool.execute(params)
+                val text = extractTextContent(result)
+
+                assertEquals("Scroll down (medium) executed", text)
+                coVerify(exactly = 1) { actionExecutor.scroll(any(), any(), any()) }
+            }
+
+        @Test
+        @DisplayName("scroll with count 3 executes three times and reports count in message")
+        fun scrollWithCountThreeExecutesThreeTimesAndReportsCountInMessage() =
+            runTest {
+                coEvery { actionExecutor.scroll(any(), any(), any()) } returns Result.success(Unit)
+
+                val params =
+                    buildJsonObject {
+                        put("direction", "down")
+                        put("count", 3)
+                    }
+                val result = tool.execute(params)
+                val text = extractTextContent(result)
+
+                assertTrue(text.contains("3 times"))
+                coVerify(exactly = 3) { actionExecutor.scroll(any(), any(), any()) }
+            }
+
+        @Test
+        @DisplayName("scroll with count below 1 throws InvalidParams")
+        fun scrollWithCountBelowOneThrowsInvalidParams() =
+            runTest {
+                val params =
+                    buildJsonObject {
+                        put("direction", "down")
+                        put("count", 0)
+                    }
+
+                assertThrows<McpToolException.InvalidParams> {
+                    tool.execute(params)
+                }
+            }
+
+        @Test
+        @DisplayName("scroll with count above 50 throws InvalidParams")
+        fun scrollWithCountAboveFiftyThrowsInvalidParams() =
+            runTest {
+                val params =
+                    buildJsonObject {
+                        put("direction", "down")
+                        put("count", 51)
+                    }
+
+                assertThrows<McpToolException.InvalidParams> {
+                    tool.execute(params)
+                }
+            }
+
+        @Test
+        @DisplayName("scroll stops after first failed repetition")
+        fun scrollStopsAfterFirstFailedRepetition() =
+            runTest {
+                coEvery { actionExecutor.scroll(any(), any(), any()) } returnsMany
+                    listOf(
+                        Result.success(Unit),
+                        Result.failure(RuntimeException("No root node available for screen dimensions")),
+                        Result.success(Unit),
+                        Result.success(Unit),
+                        Result.success(Unit),
+                    )
+
+                val params =
+                    buildJsonObject {
+                        put("direction", "down")
+                        put("count", 5)
+                    }
+
+                assertThrows<McpToolException.ActionFailed> {
+                    tool.execute(params)
+                }
+                coVerify(exactly = 2) { actionExecutor.scroll(any(), any(), any()) }
+            }
+
+        @Test
+        @DisplayName("scroll surfaces PermissionDenied when accessibility service unavailable mid-repeat")
+        fun scrollSurfacesPermissionDeniedWhenServiceUnavailableMidRepeat() =
+            runTest {
+                coEvery { actionExecutor.scroll(any(), any(), any()) } returnsMany
+                    listOf(
+                        Result.success(Unit),
+                        Result.failure(IllegalStateException("Accessibility service is not available")),
+                        Result.success(Unit),
+                    )
+
+                val params =
+                    buildJsonObject {
+                        put("direction", "down")
+                        put("count", 3)
+                    }
+
+                assertThrows<McpToolException.PermissionDenied> {
+                    tool.execute(params)
+                }
+                coVerify(exactly = 2) { actionExecutor.scroll(any(), any(), any()) }
+            }
     }
 }

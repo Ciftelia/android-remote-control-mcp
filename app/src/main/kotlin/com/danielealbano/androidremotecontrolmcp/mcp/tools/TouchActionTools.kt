@@ -11,6 +11,7 @@ import com.danielealbano.androidremotecontrolmcp.services.accessibility.ScrollDi
 import io.modelcontextprotocol.kotlin.sdk.server.Server
 import io.modelcontextprotocol.kotlin.sdk.types.CallToolResult
 import io.modelcontextprotocol.kotlin.sdk.types.ToolSchema
+import kotlinx.coroutines.delay
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonArray
@@ -308,9 +309,14 @@ class SwipeTool
 /**
  * MCP tool handler for `scroll`.
  *
- * Scrolls the screen in a specified direction.
+ * Scrolls the screen in a specified direction, optionally repeated `count` times in a single
+ * call so a client can cover many rows/screens (e.g. using the `rows=`/`row=` CollectionInfo
+ * flags from `get_screen_state`) without one round trip per screen. At `count = 50` this call
+ * can take 15+ seconds (49 settle delays plus gesture time) — an accepted trade-off of doing
+ * the distance estimate client-side instead of many round trips.
  *
- * **Input**: `{ "direction": "up"|"down"|"left"|"right", "amount": "small"|"medium"|"large" }`
+ * **Input**: `{ "direction": "up"|"down"|"left"|"right", "amount": "small"|"medium"|"large",
+ * "count": 1-50 }`
  * **Output**: `{ "content": [{ "type": "text", "text": "Scroll down (medium) executed" }] }`
  */
 class ScrollTool
@@ -359,14 +365,47 @@ class ScrollTool
                 )
             }
 
+            val count = McpToolUtils.optionalInt(arguments, "count", 1)
+            McpToolUtils.validatePositiveRange(count.toLong(), "count", MAX_COUNT.toLong())
+
             val variancePercent = variance / PERCENT_DIVISOR
 
-            Log.d(TAG, "Executing scroll ${direction.name} with amount ${amount.name}, variance $variance%")
-            val result = actionExecutor.scroll(direction, amount, variancePercent)
-            return McpToolUtils.handleActionResult(
-                result,
-                "Scroll ${directionStr.lowercase()} (${amountStr.lowercase()}) executed",
+            Log.d(
+                TAG,
+                "Executing scroll ${direction.name} with amount ${amount.name}, " +
+                    "variance $variance%, count $count",
             )
+            return repeatScroll(direction, amount, variancePercent, count)
+        }
+
+        /**
+         * Performs [count] scroll gestures via [ActionExecutor.scroll], settling
+         * [REPEAT_SETTLE_DELAY_MS] between (but not after) repetitions. Reuses
+         * [McpToolUtils.handleActionResult] per repetition so its existing
+         * PermissionDenied-vs-ActionFailed distinction applies to every repetition, not just the
+         * first.
+         */
+        private suspend fun repeatScroll(
+            direction: ScrollDirection,
+            amount: ScrollAmount,
+            variancePercent: Float,
+            count: Int,
+        ): CallToolResult {
+            val message =
+                if (count == 1) {
+                    "Scroll ${direction.name.lowercase()} (${amount.name.lowercase()}) executed"
+                } else {
+                    "Scroll ${direction.name.lowercase()} (${amount.name.lowercase()}) executed $count times"
+                }
+            var lastResult: CallToolResult = McpToolUtils.textResult(message)
+            repeat(count) { iteration ->
+                val result = actionExecutor.scroll(direction, amount, variancePercent)
+                lastResult = McpToolUtils.handleActionResult(result, message)
+                if (iteration < count - 1) {
+                    delay(REPEAT_SETTLE_DELAY_MS)
+                }
+            }
+            return lastResult
         }
 
         fun register(
@@ -376,53 +415,70 @@ class ScrollTool
             server.addTool(
                 name = "$toolNamePrefix$TOOL_NAME",
                 description =
-                    "Scrolls in the specified direction. Applies random variance to " +
-                        "scroll distance and center point for more natural-looking gestures. " +
-                        "Returns after the gesture completes.",
+                    "Scrolls in the specified direction, optionally repeated `count` times in " +
+                        "a single call. Applies random variance to scroll distance and center " +
+                        "point for more natural-looking gestures. Returns after all " +
+                        "repetitions complete.",
                 inputSchema =
                     ToolSchema(
-                        properties =
-                            buildJsonObject {
-                                putJsonObject("direction") {
-                                    put("type", "string")
-                                    put(
-                                        "enum",
-                                        buildJsonArray {
-                                            add(JsonPrimitive("up"))
-                                            add(JsonPrimitive("down"))
-                                            add(JsonPrimitive("left"))
-                                            add(JsonPrimitive("right"))
-                                        },
-                                    )
-                                }
-                                putJsonObject("amount") {
-                                    put("type", "string")
-                                    put(
-                                        "enum",
-                                        buildJsonArray {
-                                            add(JsonPrimitive("small"))
-                                            add(JsonPrimitive("medium"))
-                                            add(JsonPrimitive("large"))
-                                        },
-                                    )
-                                    put("default", "medium")
-                                }
-                                putJsonObject("variance") {
-                                    put("type", "number")
-                                    put(
-                                        "description",
-                                        "Random variance percentage (0-${MAX_VARIANCE.toInt()}). " +
-                                            "Applied as ±variance% to scroll distance and center point.",
-                                    )
-                                    put("default", DEFAULT_VARIANCE.toInt())
-                                    put("minimum", 0)
-                                    put("maximum", MAX_VARIANCE.toInt())
-                                }
-                            },
+                        properties = buildInputSchemaProperties(),
                         required = listOf("direction"),
                     ),
             ) { request -> execute(request.arguments) }
         }
+
+        private fun buildInputSchemaProperties() =
+            buildJsonObject {
+                putJsonObject("direction") {
+                    put("type", "string")
+                    put(
+                        "enum",
+                        buildJsonArray {
+                            add(JsonPrimitive("up"))
+                            add(JsonPrimitive("down"))
+                            add(JsonPrimitive("left"))
+                            add(JsonPrimitive("right"))
+                        },
+                    )
+                }
+                putJsonObject("amount") {
+                    put("type", "string")
+                    put(
+                        "enum",
+                        buildJsonArray {
+                            add(JsonPrimitive("small"))
+                            add(JsonPrimitive("medium"))
+                            add(JsonPrimitive("large"))
+                        },
+                    )
+                    put("default", "medium")
+                }
+                putJsonObject("variance") {
+                    put("type", "number")
+                    put(
+                        "description",
+                        "Random variance percentage (0-${MAX_VARIANCE.toInt()}). " +
+                            "Applied as ±variance% to scroll distance and center point.",
+                    )
+                    put("default", DEFAULT_VARIANCE.toInt())
+                    put("minimum", 0)
+                    put("maximum", MAX_VARIANCE.toInt())
+                }
+                putJsonObject("count") {
+                    put("type", "integer")
+                    put(
+                        "description",
+                        "Number of times to repeat the scroll (1-$MAX_COUNT). " +
+                            "Use this to cover many rows/screens in one call, " +
+                            "e.g. when get_screen_state's rows=/row= flags " +
+                            "indicate the target is far from the currently " +
+                            "visible items.",
+                    )
+                    put("default", 1)
+                    put("minimum", 1)
+                    put("maximum", MAX_COUNT)
+                }
+            }
 
         companion object {
             const val TOOL_NAME = "scroll"
@@ -430,6 +486,8 @@ class ScrollTool
             private const val PERCENT_DIVISOR = 100f
             private val DEFAULT_VARIANCE = ActionExecutor.DEFAULT_SCROLL_VARIANCE_PERCENT * PERCENT_DIVISOR
             private val MAX_VARIANCE = ActionExecutor.MAX_SCROLL_VARIANCE_PERCENT * PERCENT_DIVISOR
+            private const val MAX_COUNT = 50
+            private const val REPEAT_SETTLE_DELAY_MS = 300L
         }
     }
 

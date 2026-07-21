@@ -50,6 +50,8 @@ class AccessibilityTreeParserTest {
         visibleToUser: Boolean = true,
         childCount: Int = 0,
         children: List<AccessibilityNodeInfo> = emptyList(),
+        collectionInfo: AccessibilityNodeInfo.CollectionInfo? = null,
+        collectionItemInfo: AccessibilityNodeInfo.CollectionItemInfo? = null,
     ): AccessibilityNodeInfo {
         val node = mockk<AccessibilityNodeInfo>(relaxed = true)
         every { node.className } returns className
@@ -64,6 +66,8 @@ class AccessibilityTreeParserTest {
         every { node.isEnabled } returns enabled
         every { node.isVisibleToUser } returns visibleToUser
         every { node.childCount } returns childCount
+        every { node.collectionInfo } returns collectionInfo
+        every { node.collectionItemInfo } returns collectionItemInfo
 
         val rectSlot = slot<Rect>()
         every { node.getBoundsInScreen(capture(rectSlot)) } answers {
@@ -297,6 +301,129 @@ class AccessibilityTreeParserTest {
                     depth <= AccessibilityTreeParser.MAX_TREE_DEPTH,
                     "Expected tree depth <= ${AccessibilityTreeParser.MAX_TREE_DEPTH} but was $depth",
                 )
+            } finally {
+                unmockkStatic(Log::class)
+            }
+        }
+    }
+
+    @Nested
+    @DisplayName("parseTree with CollectionInfo/CollectionItemInfo")
+    inner class ParseTreeWithCollectionInfo {
+        @Test
+        @DisplayName("extracts rowCount and columnCount from CollectionInfo")
+        fun extractsRowCountAndColumnCountFromCollectionInfo() {
+            // Arrange
+            val info = mockk<AccessibilityNodeInfo.CollectionInfo>()
+            every { info.rowCount } returns 50
+            every { info.columnCount } returns 2
+            val node = createMockNode(className = "androidx.recyclerview.widget.RecyclerView", collectionInfo = info)
+
+            // Act
+            val result = parser.parseTree(node)
+
+            // Assert
+            assertEquals(50, result.rowCount)
+            assertEquals(2, result.columnCount)
+        }
+
+        @Test
+        @DisplayName("extracts rowIndex and columnIndex from CollectionItemInfo")
+        fun extractsRowIndexAndColumnIndexFromCollectionItemInfo() {
+            // Arrange
+            val itemInfo = mockk<AccessibilityNodeInfo.CollectionItemInfo>()
+            every { itemInfo.rowIndex } returns 3
+            every { itemInfo.columnIndex } returns 0
+            val node = createMockNode(text = "Row 3", collectionItemInfo = itemInfo)
+
+            // Act
+            val result = parser.parseTree(node)
+
+            // Assert
+            assertEquals(3, result.rowIndex)
+            assertEquals(0, result.columnIndex)
+        }
+
+        @Test
+        @DisplayName("leaves collection fields null when CollectionInfo and CollectionItemInfo are absent")
+        fun leavesCollectionFieldsNullWhenAbsent() {
+            // Arrange
+            val node = createMockNode(text = "Plain node")
+
+            // Act
+            val result = parser.parseTree(node)
+
+            // Assert
+            assertNull(result.rowCount)
+            assertNull(result.columnCount)
+            assertNull(result.rowIndex)
+            assertNull(result.columnIndex)
+        }
+
+        @Test
+        @DisplayName("maps negative CollectionInfo and CollectionItemInfo values to null")
+        fun mapsNegativeValuesToNull() {
+            // Arrange
+            val info = mockk<AccessibilityNodeInfo.CollectionInfo>()
+            every { info.rowCount } returns -1
+            every { info.columnCount } returns -1
+            val itemInfo = mockk<AccessibilityNodeInfo.CollectionItemInfo>()
+            every { itemInfo.rowIndex } returns -1
+            every { itemInfo.columnIndex } returns -1
+            val node =
+                createMockNode(
+                    collectionInfo = info,
+                    collectionItemInfo = itemInfo,
+                )
+
+            // Act
+            val result = parser.parseTree(node)
+
+            // Assert
+            assertNull(result.rowCount)
+            assertNull(result.columnCount)
+            assertNull(result.rowIndex)
+            assertNull(result.columnIndex)
+        }
+
+        @Test
+        @DisplayName("extracts collection fields on max-depth leaf nodes")
+        fun extractsCollectionFieldsOnMaxDepthLeafNodes() {
+            // Arrange - mock Log since truncation logs a warning
+            mockkStatic(Log::class)
+            every { Log.w(any(), any<String>()) } returns 0
+
+            try {
+                val itemInfo = mockk<AccessibilityNodeInfo.CollectionItemInfo>()
+                every { itemInfo.rowIndex } returns 7
+                every { itemInfo.columnIndex } returns 1
+
+                // Wrapping MAX_TREE_DEPTH times places `truncated` exactly at depth
+                // MAX_TREE_DEPTH, which is where parseNode returns a leafNode using the
+                // node's own properties without recursing further.
+                var current: AccessibilityNodeInfo =
+                    createMockNode(text = "TruncatedNode", collectionItemInfo = itemInfo)
+                repeat(AccessibilityTreeParser.MAX_TREE_DEPTH) {
+                    current =
+                        createMockNode(
+                            className = "android.widget.FrameLayout",
+                            childCount = 1,
+                            children = listOf(current),
+                        )
+                }
+
+                // Act
+                val result = parser.parseTree(current)
+
+                // Assert - walk to the truncated leaf and verify its collection fields
+                var node = result
+                while (node.children.isNotEmpty()) {
+                    node = node.children[0]
+                }
+                assertEquals("TruncatedNode", node.text)
+                assertEquals(7, node.rowIndex)
+                assertEquals(1, node.columnIndex)
+                assertTrue(node.children.isEmpty())
             } finally {
                 unmockkStatic(Log::class)
             }
