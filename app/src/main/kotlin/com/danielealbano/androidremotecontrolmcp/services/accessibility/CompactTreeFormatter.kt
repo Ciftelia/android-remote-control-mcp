@@ -10,7 +10,9 @@ import javax.inject.Inject
  * - Line 1: `note:structural-only nodes are omitted from the tree`
  * - Line 2: `note:certain elements are custom and will not be properly reported, ...`
  * - Line 3: `note:flags: on=onscreen off=offscreen clk=clickable lclk=longClickable
- *   foc=focusable scr=scrollable edt=editable ena=enabled`
+ *   foc=focusable scr=scrollable edt=editable ena=enabled rows=N/cols=N=container's total
+ *   row/column count (may exceed rendered items) row=N/col=N=item's position within its
+ *   container`
  * - Line 4: `note:offscreen items require scroll_to_node before interaction`
  * - Line 5: `app:<package> activity:<activity>`
  * - Line 6: `screen:<w>x<h> density:<dpi> orientation:<orientation>`
@@ -27,6 +29,7 @@ import javax.inject.Inject
  * - is longClickable
  * - is scrollable
  * - is editable
+ * - is a collection container (has a non-null rowCount or columnCount)
  *
  * Filtered nodes are skipped in output, but their children are still
  * walked and may appear if they independently pass the filter.
@@ -211,7 +214,9 @@ class CompactTreeFormatter
                 node.clickable ||
                 node.longClickable ||
                 node.scrollable ||
-                node.editable
+                node.editable ||
+                node.rowCount != null ||
+                node.columnCount != null
 
         /**
          * Strips a fully-qualified class name to its simple name.
@@ -279,7 +284,7 @@ class CompactTreeFormatter
          * Builds the comma-separated flags string for a node.
          * The first flag is always `on` (onscreen) or `off` (offscreen).
          * Subsequent flags are appended only when `true`.
-         * Order: on/off, clk, lclk, foc, scr, edt, ena
+         * Order: on/off, clk, lclk, foc, scr, edt, ena, rows, cols, row, col
          */
         internal fun buildFlags(node: AccessibilityNodeData): String =
             buildString {
@@ -308,6 +313,22 @@ class CompactTreeFormatter
                     append(FLAG_SEPARATOR)
                     append(FLAG_ENABLED)
                 }
+                if (node.rowCount != null) {
+                    append(FLAG_SEPARATOR)
+                    append("rows=${node.rowCount}")
+                }
+                if (node.columnCount != null) {
+                    append(FLAG_SEPARATOR)
+                    append("cols=${node.columnCount}")
+                }
+                if (node.rowIndex != null) {
+                    append(FLAG_SEPARATOR)
+                    append("row=${node.rowIndex}")
+                }
+                if (node.columnIndex != null) {
+                    append(FLAG_SEPARATOR)
+                    append("col=${node.columnIndex}")
+                }
             }
 
         companion object {
@@ -326,7 +347,9 @@ class CompactTreeFormatter
                     "include_screenshot=true to see the screen and take what you see into account"
             const val NOTE_LINE_FLAGS_LEGEND =
                 "note:flags: on=onscreen off=offscreen clk=clickable lclk=longClickable " +
-                    "foc=focusable scr=scrollable edt=editable ena=enabled"
+                    "foc=focusable scr=scrollable edt=editable ena=enabled " +
+                    "rows=N/cols=N=container's total row/column count (may exceed rendered " +
+                    "items) row=N/col=N=item's position within its container"
             const val NOTE_LINE_OFFSCREEN_HINT =
                 "note:offscreen items require scroll_to_node before interaction"
             const val FLAG_ONSCREEN = "on"
