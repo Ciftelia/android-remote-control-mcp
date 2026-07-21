@@ -948,7 +948,7 @@ Performs a swipe gesture from one point to another.
 
 ### `android_scroll`
 
-Scrolls the screen in the specified direction. Calculates scroll distance as a percentage of screen dimension based on the amount parameter. Applies random variance to scroll distance and center point for more natural-looking gestures.
+Scrolls the screen in the specified direction. Calculates scroll distance as a percentage of screen dimension based on the amount parameter. Applies random variance to scroll distance and center point for more natural-looking gestures. Optionally repeats the scroll `count` times in a single call — use this with the `rows=`/`row=` CollectionInfo flags from `get_screen_state` to cover many rows/screens at once instead of one round trip per screen.
 
 **Input Schema**:
 | Parameter | Type | Required | Default | Description |
@@ -956,6 +956,7 @@ Scrolls the screen in the specified direction. Calculates scroll distance as a p
 | `direction` | string | Yes | - | Direction: "up", "down", "left", "right" |
 | `amount` | string | No | "medium" | Amount: "small" (25%), "medium" (50%), "large" (75%) |
 | `variance` | number | No | 5 | Random variance percentage (0-20). Applied as ±variance% to scroll distance and center point. |
+| `count` | integer | No | 1 | Number of times to repeat the scroll (1-50). Use with the `rows=`/`row=` CollectionInfo flags from `get_screen_state` to cover many rows/screens in one call. |
 
 **Example Request**:
 ```json
@@ -991,9 +992,9 @@ Scrolls the screen in the specified direction. Calculates scroll distance as a p
 ```
 
 **Error Cases** (returned as `CallToolResult(isError = true)`):
-- **Invalid params**: Invalid direction (not one of up/down/left/right), invalid amount (not one of small/medium/large), or invalid variance (negative or exceeding 20)
+- **Invalid params**: Invalid direction (not one of up/down/left/right), invalid amount (not one of small/medium/large), invalid variance (negative or exceeding 20), or invalid count (< 1 or > 50)
 - **Permission denied**: Accessibility service not enabled
-- **Action failed**: Scroll gesture execution failed (e.g., no root node available for screen dimensions)
+- **Action failed**: Scroll gesture execution failed (e.g., no root node available for screen dimensions); with `count > 1`, the first failed repetition stops the loop and is reported
 
 ---
 
