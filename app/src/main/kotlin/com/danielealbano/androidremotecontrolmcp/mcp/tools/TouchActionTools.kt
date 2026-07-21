@@ -370,8 +370,12 @@ class ScrollTool
 
             val variancePercent = variance / PERCENT_DIVISOR
 
-            Log.d(TAG, "Executing scroll ${direction.name} with amount ${amount.name}, variance $variance%, count $count")
-            return repeatScroll(direction, amount, variancePercent, count, directionStr, amountStr)
+            Log.d(
+                TAG,
+                "Executing scroll ${direction.name} with amount ${amount.name}, " +
+                    "variance $variance%, count $count",
+            )
+            return repeatScroll(direction, amount, variancePercent, count)
         }
 
         /**
@@ -386,14 +390,12 @@ class ScrollTool
             amount: ScrollAmount,
             variancePercent: Float,
             count: Int,
-            directionStr: String,
-            amountStr: String,
         ): CallToolResult {
             val message =
                 if (count == 1) {
-                    "Scroll ${directionStr.lowercase()} (${amountStr.lowercase()}) executed"
+                    "Scroll ${direction.name.lowercase()} (${amount.name.lowercase()}) executed"
                 } else {
-                    "Scroll ${directionStr.lowercase()} (${amountStr.lowercase()}) executed $count times"
+                    "Scroll ${direction.name.lowercase()} (${amount.name.lowercase()}) executed $count times"
                 }
             var lastResult: CallToolResult = McpToolUtils.textResult(message)
             repeat(count) { iteration ->
@@ -419,62 +421,64 @@ class ScrollTool
                         "repetitions complete.",
                 inputSchema =
                     ToolSchema(
-                        properties =
-                            buildJsonObject {
-                                putJsonObject("direction") {
-                                    put("type", "string")
-                                    put(
-                                        "enum",
-                                        buildJsonArray {
-                                            add(JsonPrimitive("up"))
-                                            add(JsonPrimitive("down"))
-                                            add(JsonPrimitive("left"))
-                                            add(JsonPrimitive("right"))
-                                        },
-                                    )
-                                }
-                                putJsonObject("amount") {
-                                    put("type", "string")
-                                    put(
-                                        "enum",
-                                        buildJsonArray {
-                                            add(JsonPrimitive("small"))
-                                            add(JsonPrimitive("medium"))
-                                            add(JsonPrimitive("large"))
-                                        },
-                                    )
-                                    put("default", "medium")
-                                }
-                                putJsonObject("variance") {
-                                    put("type", "number")
-                                    put(
-                                        "description",
-                                        "Random variance percentage (0-${MAX_VARIANCE.toInt()}). " +
-                                            "Applied as ±variance% to scroll distance and center point.",
-                                    )
-                                    put("default", DEFAULT_VARIANCE.toInt())
-                                    put("minimum", 0)
-                                    put("maximum", MAX_VARIANCE.toInt())
-                                }
-                                putJsonObject("count") {
-                                    put("type", "integer")
-                                    put(
-                                        "description",
-                                        "Number of times to repeat the scroll (1-$MAX_COUNT). " +
-                                            "Use this to cover many rows/screens in one call, " +
-                                            "e.g. when get_screen_state's rows=/row= flags " +
-                                            "indicate the target is far from the currently " +
-                                            "visible items.",
-                                    )
-                                    put("default", 1)
-                                    put("minimum", 1)
-                                    put("maximum", MAX_COUNT)
-                                }
-                            },
+                        properties = buildInputSchemaProperties(),
                         required = listOf("direction"),
                     ),
             ) { request -> execute(request.arguments) }
         }
+
+        private fun buildInputSchemaProperties() =
+            buildJsonObject {
+                putJsonObject("direction") {
+                    put("type", "string")
+                    put(
+                        "enum",
+                        buildJsonArray {
+                            add(JsonPrimitive("up"))
+                            add(JsonPrimitive("down"))
+                            add(JsonPrimitive("left"))
+                            add(JsonPrimitive("right"))
+                        },
+                    )
+                }
+                putJsonObject("amount") {
+                    put("type", "string")
+                    put(
+                        "enum",
+                        buildJsonArray {
+                            add(JsonPrimitive("small"))
+                            add(JsonPrimitive("medium"))
+                            add(JsonPrimitive("large"))
+                        },
+                    )
+                    put("default", "medium")
+                }
+                putJsonObject("variance") {
+                    put("type", "number")
+                    put(
+                        "description",
+                        "Random variance percentage (0-${MAX_VARIANCE.toInt()}). " +
+                            "Applied as ±variance% to scroll distance and center point.",
+                    )
+                    put("default", DEFAULT_VARIANCE.toInt())
+                    put("minimum", 0)
+                    put("maximum", MAX_VARIANCE.toInt())
+                }
+                putJsonObject("count") {
+                    put("type", "integer")
+                    put(
+                        "description",
+                        "Number of times to repeat the scroll (1-$MAX_COUNT). " +
+                            "Use this to cover many rows/screens in one call, " +
+                            "e.g. when get_screen_state's rows=/row= flags " +
+                            "indicate the target is far from the currently " +
+                            "visible items.",
+                    )
+                    put("default", 1)
+                    put("minimum", 1)
+                    put("maximum", MAX_COUNT)
+                }
+            }
 
         companion object {
             const val TOOL_NAME = "scroll"
