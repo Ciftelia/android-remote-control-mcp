@@ -236,7 +236,7 @@ Replaces the previous `get_accessibility_tree`, `capture_screenshot`, `get_curre
     "content": [
       {
         "type": "text",
-        "text": "note:structural-only nodes are omitted from the tree\nnote:certain elements are custom and will not be properly reported, if needed or if tools are not working as expected set include_screenshot=true to see the screen and take what you see into account\nnote:flags: on=onscreen off=offscreen clk=clickable lclk=longClickable foc=focusable scr=scrollable edt=editable ena=enabled\nnote:offscreen items require scroll_to_node before interaction\nscreen:1080x2400 density:420 orientation:portrait\n--- window:42 type:APPLICATION pkg:com.android.calculator2 title:Calculator activity:.Calculator layer:0 focused:true ---\nnode_id\tclass\ttext\tdesc\tres_id\tbounds\tflags\nnode_a1b2\tTextView\tCalculator\t-\tcom.android.calculator2:id/title\t100,50,500,120\ton,ena\nnode_c3d4\tButton\t7\t-\tcom.android.calculator2:id/digit_7\t50,800,270,1000\ton,clk,ena\nhierarchy:\nnode_a1b2\nnode_c3d4"
+        "text": "note:structural-only nodes are omitted from the tree\nnote:certain elements are custom and will not be properly reported, if needed or if tools are not working as expected set include_screenshot=true to see the screen and take what you see into account\nnote:flags: on=onscreen off=offscreen clk=clickable lclk=longClickable foc=focusable scr=scrollable edt=editable ena=enabled rows=N/cols=N=container's total row/column count (may exceed rendered items) row=N/col=N=item's position within its container\nnote:offscreen items require scroll_to_node before interaction\nscreen:1080x2400 density:420 orientation:portrait\n--- window:42 type:APPLICATION pkg:com.android.calculator2 title:Calculator activity:.Calculator layer:0 focused:true ---\nnode_id\tclass\ttext\tdesc\tres_id\tbounds\tflags\nnode_a1b2\tTextView\tCalculator\t-\tcom.android.calculator2:id/title\t100,50,500,120\ton,ena\nnode_c3d4\tButton\t7\t-\tcom.android.calculator2:id/digit_7\t50,800,270,1000\ton,clk,ena\nhierarchy:\nnode_a1b2\nnode_c3d4"
       }
     ]
   }
@@ -272,7 +272,7 @@ The text output is a multi-window compact flat TSV (tab-separated values) format
 2. **Note lines** (global):
    - `note:structural-only nodes are omitted from the tree`
    - `note:certain elements are custom and will not be properly reported...`
-   - `note:flags: on=onscreen off=offscreen clk=clickable lclk=longClickable foc=focusable scr=scrollable edt=editable ena=enabled`
+   - `note:flags: on=onscreen off=offscreen clk=clickable lclk=longClickable foc=focusable scr=scrollable edt=editable ena=enabled rows=N/cols=N=container's total row/column count (may exceed rendered items) row=N/col=N=item's position within its container`
    - `note:offscreen items require scroll_to_node before interaction`
 3. **Screen line** (global): `screen:<width>x<height> density:<dpi> orientation:<orientation>`
 4. **Per-window sections** (repeated for each window):
@@ -302,6 +302,16 @@ Only flags that are `true` are included. The `on`/`off` flag is always first.
 | `edt`  | editable      |
 | `ena`  | enabled       |
 
+The four tokens below are `key=value` pairs (not booleans) and are only present on collection
+containers (e.g. RecyclerView, LazyColumn) and their rendered items, respectively:
+
+| Token    | Meaning |
+|----------|---------|
+| `rows=N` | container's total row count (CollectionInfo; may exceed rendered items) |
+| `cols=N` | container's total column count (CollectionInfo) |
+| `row=N`  | item's row index within its container (CollectionItemInfo) |
+| `col=N`  | item's column index within its container (CollectionItemInfo) |
+
 Example: `on,clk,ena` means onscreen + clickable + enabled.
 
 #### Class Name Simplification
@@ -315,8 +325,9 @@ Nodes are **omitted** from the output when ALL of the following are true:
 - No `contentDescription`
 - No `resourceId`
 - Not `clickable`, `longClickable`, `scrollable`, or `editable`
+- Not a collection container (no `rowCount` and no `columnCount` from CollectionInfo)
 
-This filters out structural-only container nodes (e.g., bare `FrameLayout`, `LinearLayout`) that have no semantic value for LLM tool callers.
+This filters out structural-only container nodes (e.g., bare `FrameLayout`, `LinearLayout`) that have no semantic value for LLM tool callers. Collection containers (e.g. RecyclerView, LazyColumn) are always kept, even with none of the other criteria, so their `rows=`/`cols=` tokens are never lost.
 
 #### Text/Description Truncation
 
