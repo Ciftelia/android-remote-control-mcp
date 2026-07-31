@@ -129,15 +129,14 @@
         </receiver>
 
         <!-- ADB Configuration Receiver (headless setup via adb shell am broadcast) -->
+        <!-- Gated on DUMP: a signature/privileged platform permission held by the
+             adb shell UID (com.android.shell) but NOT grantable to third-party apps.
+             Enforced by ActivityManager against the sender's real binder UID, so
+             `adb shell am broadcast` still works while ordinary apps get a SecurityException. -->
         <receiver
             android:name=".services.mcp.AdbConfigReceiver"
-            android:exported="true">
-        </receiver>
-
-        <!-- E2E Configuration Receiver (test configuration injection via adb shell) -->
-        <receiver
-            android:name=".debug.E2EConfigReceiver"
-            android:exported="true">
+            android:exported="true"
+            android:permission="android.permission.DUMP">
         </receiver>
 
         <!-- Event Channel Service -->
@@ -147,9 +146,11 @@
             android:foregroundServiceType="location" />
 
         <!-- ADB Service Trampoline (headless start/stop via adb shell am start) -->
+        <!-- Gated on DUMP (adb-shell-only) for the same reason as AdbConfigReceiver above. -->
         <activity
             android:name=".services.mcp.AdbServiceTrampolineActivity"
             android:exported="true"
+            android:permission="android.permission.DUMP"
             android:theme="@android:style/Theme.NoDisplay"
             android:excludeFromRecents="true"
             android:noHistory="true" />

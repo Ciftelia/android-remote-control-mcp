@@ -22,6 +22,9 @@ keystore.properties
 *.jks
 *.keystore
 
+# Local release signing material (keystore, plaintext credentials, certs) — NEVER commit
+.release/
+
 # Environment / Secrets
 .env
 .env.*

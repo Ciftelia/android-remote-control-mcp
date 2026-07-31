@@ -154,7 +154,9 @@ class NgrokTunnelIntegrationTest {
      * Fetches a URL with retries.
      *
      * ngrok tunnels can take a moment to become fully routable after the
-     * URL is reported. Retries handle transient 502/503 responses.
+     * URL is reported. While the edge is still wiring up the route it returns
+     * transient errors — 404 (route not ready) and the whole 5xx range
+     * (Bad Gateway / upstream errors). Retries handle all of these.
      */
     private fun fetchUrlWithRetry(url: String): String {
         var lastException: Exception? = null
@@ -171,7 +173,7 @@ class NgrokTunnelIntegrationTest {
                     return connection.inputStream.bufferedReader().readText()
                 }
 
-                if (responseCode in RETRYABLE_HTTP_CODES) {
+                if (responseCode == HTTP_NOT_FOUND || responseCode in HTTP_SERVER_ERROR_RANGE) {
                     Thread.sleep(FETCH_RETRY_DELAY_MS * (attempt + 1))
                     return@repeat
                 }
@@ -196,7 +198,8 @@ class NgrokTunnelIntegrationTest {
         private const val FETCH_READ_TIMEOUT_MS = 10_000
         private const val FETCH_RETRY_DELAY_MS = 2_000L
         private const val HTTP_OK = 200
-        private val RETRYABLE_HTTP_CODES = listOf(404, 502, 503)
+        private const val HTTP_NOT_FOUND = 404
+        private val HTTP_SERVER_ERROR_RANGE = 500..599
 
         @JvmStatic
         @BeforeAll

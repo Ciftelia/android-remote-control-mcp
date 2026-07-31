@@ -11,13 +11,41 @@ The app runs directly on your Android device (or emulator) and exposes an HTTP s
 
 ---
 
+## Contents
+
+- [Demo](#demo)
+- [Features](#features)
+- [Install](#install)
+- [Setup](#setup)
+- [Integrations](#integrations)
+- [Configuration](#configuration)
+- [Permissions Reference](#permissions-reference)
+- [Security](#security)
+- [Contributing](#contributing)
+- [License](#license)
+
+---
+
 ## Demo
 
-<p align="center">
-  <img src="docs/assets/demo.gif" alt="Demo of an AI model controlling an Android device through the MCP server" width="720">
-</p>
+<table>
+  <tr>
+    <td align="center" width="33%" valign="top">
+      <a href="docs/assets/demo-reddit-post.gif" title="Click for full resolution"><img src="docs/assets/demo-reddit-post-small.gif" alt="Posting on Reddit through the MCP server" width="240"></a>
+      <br><em>Posting on Reddit (sped up, ~6 min original)</em>
+    </td>
+    <td align="center" width="33%" valign="top">
+      <a href="docs/assets/demo-install-booking.gif" title="Click for full resolution"><img src="docs/assets/demo-install-booking-small.gif" alt="Installing the booking.com app through the MCP server" width="240"></a>
+      <br><em>Installing the booking.com app</em>
+    </td>
+    <td align="center" width="33%" valign="top">
+      <a href="docs/assets/demo-flight-search.gif" title="Click for full resolution"><img src="docs/assets/demo-flight-search-small.gif" alt="Skyscanner flight search from Zurich to Istanbul through the MCP server" width="240"></a>
+      <br><em>Flight search on Skyscanner, Zurich &rarr; Istanbul (sped up, ~4 min original)</em>
+    </td>
+  </tr>
+</table>
 
-<p align="center"><em>An AI model controlling an Android device through the MCP server (sped up).</em></p>
+<p align="center"><em>An AI model controlling an Android device through the MCP server &mdash; click any clip for full resolution.</em></p>
 
 ## Features
 
@@ -79,6 +107,15 @@ On the token efficiency side, ADB-based tools typically return raw `uiautomator`
 
 ## Install
 
+### Which build to download: GMS or FOSS
+
+Each release provides two flavors of the APK — pick the one that matches your device:
+
+- **GMS** (`…-gms-release.apk`) — the full build. **Requires Google Mobile Services (Google Play Services)** installed on the phone. Choose this on standard devices/emulators that ship with Google services.
+- **FOSS** (`…-foss-release.apk`) — a Google-free build with **no dependency on Google Mobile Services**. Works on **any** Android phone, including de-Googled ROMs and devices where Google services are unavailable.
+
+If unsure, the GMS build is the right choice for a typical phone with the Play Store.
+
 ### Option A: Download on your phone (easiest)
 
 1. Open the [Releases](https://github.com/danielealbano/android-remote-control-mcp/releases) page on your phone's browser
@@ -89,9 +126,9 @@ On the token efficiency side, ADB-based tools typically return raw `uiautomator`
 
 1. Download the APK from the [Releases](https://github.com/danielealbano/android-remote-control-mcp/releases) page
 2. Connect your phone via USB (with USB Debugging enabled)
-3. Install the APK:
+3. Install the APK (use the GMS or FOSS file you downloaded):
 ```bash
-adb install app-release.apk
+adb install android-remote-control-mcp-<version>-gms-release.apk
 ```
 
 ### Option C: Build from sources
@@ -109,48 +146,25 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for full build requirements and instructi
 
 ## Setup
 
-1. **Open the app** and go to Settings > Permissions
-2. **Enable Accessibility Service** (required for UI introspection, actions, and screenshots)
-3. **Grant additional permissions** as needed (Camera, Microphone, Location, Notifications)
-4. **Configure storage locations** in Settings > Storage if you plan to use file tools (includes automatic locations like Downloads, plus custom locations via SAF)
-5. Go back to the **Server tab** and tap **Start** to start the MCP server
+1. **Open the app.** The Server tab shows a permission warning banner; grant permissions from there or via Settings > Permissions.
+
+2. **Grant permissions:**
+
+   - **Accessibility Service** — **required.** Powers UI introspection, action execution, and screenshots; nothing works without it.
+     - **If the toggle is greyed out** (Android 13+, common on Samsung/One UI for apps installed from an APK): this is Android's "Restricted settings" protection. A dialog reads *"Restricted setting — For your security, this setting is currently unavailable."* To unblock it, go to **Settings → Apps → Android Remote Control MCP → App info**, tap the **⋮ menu** (top-right), choose **Allow restricted settings**, confirm with your PIN/pattern/biometric, then enable the Accessibility Service. (Play Store / F-Droid installs are not affected.)
+   - **Notifications** — required **only if** you use **OAuth login** or the **Event Channel** push feature; not needed otherwise. OAuth approval prompts arrive as heads-up notifications that you tap to approve each sign-in (Claude.ai / Claude Desktop, ChatGPT, or any third-party OAuth client). The Event Channel — e.g. pushing device events to Claude Code — runs as a foreground service that posts through this permission on Android 13+.
+   - **Other permissions** (optional) — Camera, Microphone, and Location enable their corresponding MCP tools. The app works without them; only the dependent features are disabled until granted. See the [Permissions Reference](#permissions-reference) below for the complete list.
+   - **Storage locations** — configure in Settings > Storage if you plan to use the file tools (automatic locations like Downloads, plus custom locations via SAF).
+
+3. **Start the server.** Go back to the **Server tab** and tap **Start**.
 
 The server starts on `http://127.0.0.1:8080` by default. The connection info (IP, port, token, URL) is displayed on the Server tab.
 
 > **Note**: `127.0.0.1` refers to the phone's localhost, not your computer. To connect from your computer, use [adb port forwarding](#using-with-adb-port-forwarding), bind to `0.0.0.0` (network mode), or enable a [remote access tunnel](#using-remote-access-tunnels).
 
-### Permissions Reference
-
-The app declares the permissions below. **Normal** permissions are granted automatically at install. **Runtime** permissions and **Special access** require explicit user action (via the app's Settings > Permissions tab, or programmatically — see [Granting Permissions Programmatically](docs/PERMISSIONS.md)). All runtime permissions are optional: the app works without them, but the features that depend on them are disabled until granted.
-
-| Permission | Type | Used for |
-|------------|------|----------|
-| `INTERNET` | Normal | HTTP/HTTPS server and remote access tunnels |
-| `ACCESS_NETWORK_STATE` | Normal | Detect network connectivity |
-| `FOREGROUND_SERVICE` | Normal | Run the MCP server as a foreground service |
-| `FOREGROUND_SERVICE_SPECIAL_USE` | Normal | Foreground service type for the MCP server |
-| `FOREGROUND_SERVICE_LOCATION` | Normal | Foreground service type for the Event Channel (geofence/WiFi) |
-| `RECEIVE_BOOT_COMPLETED` | Normal | Auto-start the server on device boot |
-| `QUERY_ALL_PACKAGES` | Normal | Enumerate installed apps for app-management tools |
-| `KILL_BACKGROUND_PROCESSES` | Normal | Stop background apps via app-management tools |
-| `ACCESS_WIFI_STATE` | Normal | Read WiFi state for the Event Channel |
-| `CHANGE_WIFI_STATE` | Normal | Manage WiFi for the Event Channel |
-| `POST_NOTIFICATIONS` | Runtime | Show the foreground service notification (Android 13+) |
-| `CAMERA` | Runtime | Camera photo/video MCP tools |
-| `RECORD_AUDIO` | Runtime | Audio capture for camera video tools |
-| `ACCESS_FINE_LOCATION` | Runtime | Location tools and geofence events |
-| `ACCESS_COARSE_LOCATION` | Runtime | Approximate location |
-| `ACCESS_BACKGROUND_LOCATION` | Runtime | Location/geofence events while the app is in the background |
-| `NEARBY_WIFI_DEVICES` | Runtime | WiFi scanning for the Event Channel (Android 13+) |
-| `READ_MEDIA_IMAGES` | Runtime | "All files" mode for built-in image storage locations (Android 13+) |
-| `READ_MEDIA_VIDEO` | Runtime | "All files" mode for built-in video storage locations (Android 13+) |
-| `READ_MEDIA_AUDIO` | Runtime | "All files" mode for built-in audio storage locations (Android 13+) |
-| Accessibility Service | Special access | UI introspection, action execution, and screenshots — **required** for core functionality |
-| Notification Listener | Special access | Reading and managing notifications via notification tools |
-
 ---
 
-## Connect
+## Integrations
 
 ### Claude Desktop / Claude Code
 
@@ -189,6 +203,18 @@ Claude.ai (web) and Claude Desktop connect as a **custom connector** (remote MCP
 Custom connectors are available on the Free (1 connector), Pro, Max, Team, and Enterprise plans (currently in beta).
 
 > ⚠️ **Security:** treat the public tunnel URL as sensitive, approve only connections you initiated (verify the 2-digit code), revoke clients you no longer use, and stop the tunnel and server when you are done. Never point it at a device holding sensitive data.
+
+### Connect from ChatGPT (Custom Connector, OAuth)
+
+ChatGPT connects to the server as a **custom MCP connector** using the same self-contained OAuth 2.1 flow. As with Claude, the server must be reachable over a **public HTTPS URL**, so enable a [remote access tunnel](#using-remote-access-tunnels) first — a `localhost`/LAN address or `adb` port-forward will **not** work. Custom connectors require a paid plan (Plus, Pro, Business, Enterprise, or Edu — not Free) and are set up from the **ChatGPT web app**.
+
+1. **Enable Developer mode** — in ChatGPT on the web, open **Settings → Connectors → Advanced settings** (labelled **Apps & Connectors** on some builds) and turn on **Developer mode**.
+2. **Start the tunnel** — same as the Claude flow above: OAuth stays enabled by default, turn on **Remote Access** under Settings → Tunnel, start the server, and copy the public `https://…/mcp` URL from the Server tab.
+3. **Add the connector** — open **Settings → Connectors → Create**, give it a name and description, paste the `https://…/mcp` URL, select **OAuth** as the authentication method, and leave any Client ID / Client Secret blank (the app self-registers clients via Dynamic Client Registration).
+4. **Approve on the device** — ChatGPT starts the OAuth flow and a heads-up notification appears on the phone. Tap it, confirm the 2-digit code matches, and **Approve** (identical to the Claude approval step — the device Notifications permission must be enabled).
+5. Manage or revoke the connected client any time under **Settings → Access → Connected clients** in the app.
+
+> ⚠️ **Security:** the same cautions apply — treat the tunnel URL as sensitive, approve only connections you initiated (verify the code), revoke unused clients, and stop the tunnel and server when you are done.
 
 ### Other MCP Clients
 
@@ -352,6 +378,11 @@ See [docs/PERMISSIONS.md](docs/PERMISSIONS.md) for the full reference and a copy
 
 All extras are optional — only the ones provided are updated. The app does **not** need to be open.
 
+> **Requires adb.** The configuration receiver and the service trampoline are gated on
+> `android.permission.DUMP`, which the adb shell UID holds but ordinary apps cannot obtain. The
+> commands below work unchanged from `adb shell`; an app on the device cannot use them to
+> reconfigure the server. See the [Security](#security) section.
+
 ```bash
 adb shell am broadcast \
   -a com.danielealbano.androidremotecontrolmcp.ADB_CONFIGURE \
@@ -426,6 +457,37 @@ adb shell am start \
   -n <app-id>/com.danielealbano.androidremotecontrolmcp.services.mcp.AdbServiceTrampolineActivity \
   --es action stop
 ```
+
+---
+
+## Permissions Reference
+
+The app declares the permissions below. **Normal** permissions are granted automatically at install. **Runtime** permissions and **Special access** require explicit user action (via the app's Settings > Permissions tab, or programmatically — see [Granting Permissions Programmatically](docs/PERMISSIONS.md)). All runtime permissions are optional: the app works without them, but the features that depend on them are disabled until granted.
+
+| Permission | Type | Used for |
+|------------|------|----------|
+| `INTERNET` | Normal | HTTP/HTTPS server and remote access tunnels |
+| `ACCESS_NETWORK_STATE` | Normal | Detect network connectivity |
+| `FOREGROUND_SERVICE` | Normal | Run the MCP server as a foreground service |
+| `FOREGROUND_SERVICE_SPECIAL_USE` | Normal | Foreground service type for the MCP server |
+| `FOREGROUND_SERVICE_LOCATION` | Normal | Foreground service type for the Event Channel (geofence/WiFi) |
+| `RECEIVE_BOOT_COMPLETED` | Normal | Auto-start the server on device boot |
+| `QUERY_ALL_PACKAGES` | Normal | Enumerate installed apps for app-management tools |
+| `KILL_BACKGROUND_PROCESSES` | Normal | Stop background apps via app-management tools |
+| `ACCESS_WIFI_STATE` | Normal | Read WiFi state for the Event Channel |
+| `CHANGE_WIFI_STATE` | Normal | Manage WiFi for the Event Channel |
+| `POST_NOTIFICATIONS` | Runtime | Show the foreground service notification (Android 13+) |
+| `CAMERA` | Runtime | Camera photo/video MCP tools |
+| `RECORD_AUDIO` | Runtime | Audio capture for camera video tools |
+| `ACCESS_FINE_LOCATION` | Runtime | Location tools and geofence events |
+| `ACCESS_COARSE_LOCATION` | Runtime | Approximate location |
+| `ACCESS_BACKGROUND_LOCATION` | Runtime | Location/geofence events while the app is in the background |
+| `NEARBY_WIFI_DEVICES` | Runtime | WiFi scanning for the Event Channel (Android 13+) |
+| `READ_MEDIA_IMAGES` | Runtime | "All files" mode for built-in image storage locations (Android 13+) |
+| `READ_MEDIA_VIDEO` | Runtime | "All files" mode for built-in video storage locations (Android 13+) |
+| `READ_MEDIA_AUDIO` | Runtime | "All files" mode for built-in audio storage locations (Android 13+) |
+| Accessibility Service | Special access | UI introspection, action execution, and screenshots — **required** for core functionality |
+| Notification Listener | Special access | Reading and managing notifications via notification tools |
 
 ---
 

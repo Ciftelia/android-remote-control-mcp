@@ -161,7 +161,29 @@ jobs:
           path: .dbip-cache
           key: dbip-csv-${{ steps.dbip-month.outputs.month }}
 
-      # ── 8. Build APKs with version name from tag (versionCode derived by Gradle from git) ──
+      # ── 8. Decode the release keystore and write signing config so the release APKs are signed.
+      #      app/build.gradle.kts applies the release signingConfig only when keystore.properties
+      #      exists at the repo root; without this step the release APKs build unsigned. ──
+      - name: Decode release keystore
+        env:
+          RELEASE_KEYSTORE_BASE64: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
+          RELEASE_KEYSTORE_PASSWORD: ${{ secrets.RELEASE_KEYSTORE_PASSWORD }}
+          RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
+          RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
+        run: |
+          if [ -z "$RELEASE_KEYSTORE_BASE64" ]; then
+            echo "::error::RELEASE_KEYSTORE_BASE64 secret is not set; release APKs would be unsigned"
+            exit 1
+          fi
+          printf '%s' "$RELEASE_KEYSTORE_BASE64" | base64 -d > "$GITHUB_WORKSPACE/release.jks"
+          {
+            echo "storeFile=$GITHUB_WORKSPACE/release.jks"
+            echo "storePassword=$RELEASE_KEYSTORE_PASSWORD"
+            echo "keyAlias=$RELEASE_KEY_ALIAS"
+            echo "keyPassword=$RELEASE_KEY_PASSWORD"
+          } > "$GITHUB_WORKSPACE/keystore.properties"
+
+      # ── 9. Build APKs with version name from tag (versionCode derived by Gradle from git) ──
       - name: Build APKs
         env:
           VERSION_NAME: ${{ steps.parse-tag.outputs.version }}

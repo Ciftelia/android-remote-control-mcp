@@ -18,6 +18,12 @@ import android.util.Log
  * For configuration-only changes (no service start/stop), use [AdbConfigReceiver] instead
  * — it works from the background without a foreground exemption.
  *
+ * Because this Activity exists specifically to bypass the background foreground-service-start
+ * restriction, an unprotected export would let any installed app start the MCP server. It is
+ * therefore gated by `android:permission="android.permission.DUMP"` in the manifest, enforced by
+ * ActivityManager against the caller's real binder UID — see [AdbConfigReceiver] for why DUMP is
+ * the right permission and GHSA-v82h-m32h-3j39 for the issue this closes.
+ *
  * **Usage** (from adb):
  * ```
  * # Start the MCP server

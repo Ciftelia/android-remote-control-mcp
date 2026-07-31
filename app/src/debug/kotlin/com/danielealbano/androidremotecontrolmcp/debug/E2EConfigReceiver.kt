@@ -20,9 +20,20 @@ import javax.inject.Inject
  * Debug-only [BroadcastReceiver] that accepts test configuration overrides
  * via `adb shell am broadcast`.
  *
- * This receiver is ONLY included in debug builds. It allows E2E tests to
- * inject server settings (bearer token, binding address, port) into the
- * app's DataStore without manipulating protobuf files directly.
+ * This receiver lives in the `debug` source set, so it is absent from the release
+ * APK entirely. It allows E2E tests to inject server settings (bearer token,
+ * binding address, port) into the app's DataStore without manipulating protobuf
+ * files directly.
+ *
+ * The source set alone is NOT the security boundary: debug APKs are attached to
+ * GitHub releases, so this receiver does reach real devices. It is additionally
+ * gated by `android:permission="android.permission.DUMP"` in the debug manifest —
+ * a signature/privileged platform permission held by the adb shell UID
+ * (com.android.shell) but not grantable to third-party apps. ActivityManager
+ * enforces it against the sender's real binder calling UID, so `adb shell am
+ * broadcast` still reaches this receiver while an ordinary app is rejected with a
+ * SecurityException before [onReceive] runs. Without that gate, any installed app
+ * could rewrite the MCP server's configuration (see GHSA-v82h-m32h-3j39).
  *
  * **Usage** (from E2E test via adb):
  * ```

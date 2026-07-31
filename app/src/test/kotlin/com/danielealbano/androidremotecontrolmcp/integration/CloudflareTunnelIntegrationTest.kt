@@ -170,7 +170,10 @@ class CloudflareTunnelIntegrationTest {
      * Fetches a URL with retries.
      *
      * Cloudflare Quick Tunnels can take a moment to become fully routable
-     * after the URL is reported. Retries handle transient 502/503 responses.
+     * after the URL is reported. While the edge is still wiring up the route
+     * it returns transient errors — 404 (route/DNS not propagated yet) and the
+     * whole 5xx range (Bad Gateway plus Cloudflare Argo error 1033 → HTTP 530
+     * and edge errors 520–527). Retries handle all of these.
      */
     private fun fetchUrlWithRetry(url: String): String {
         var lastException: Exception? = null
@@ -186,8 +189,8 @@ class CloudflareTunnelIntegrationTest {
                     return connection.inputStream.bufferedReader().readText()
                 }
 
-                // Retry on 502/503 (tunnel not yet fully routed)
-                if (responseCode in RETRYABLE_HTTP_CODES) {
+                // Retry while the tunnel is not yet fully routed
+                if (responseCode == HTTP_NOT_FOUND || responseCode in HTTP_SERVER_ERROR_RANGE) {
                     Thread.sleep(FETCH_RETRY_DELAY_MS * (attempt + 1))
                     return@repeat
                 }
@@ -212,7 +215,8 @@ class CloudflareTunnelIntegrationTest {
         private const val FETCH_READ_TIMEOUT_MS = 10_000
         private const val FETCH_RETRY_DELAY_MS = 2_000L
         private const val HTTP_OK = 200
-        private val RETRYABLE_HTTP_CODES = listOf(502, 503)
+        private const val HTTP_NOT_FOUND = 404
+        private val HTTP_SERVER_ERROR_RANGE = 500..599
 
         @JvmStatic
         @BeforeAll
